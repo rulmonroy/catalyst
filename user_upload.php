@@ -1,4 +1,7 @@
 <?php
+/*
+	Script to parse a CSV file with user data and import it into table "users" of selected database.
+*/
 	// Argument handler
 	// -----------------------------------
 	$argsok 	= false;
@@ -11,8 +14,6 @@
 	$preparedb 	= false;		// Flag to trigger database table creation.
 	$suspend	= false;		// Flag to suspend script.
 	
-	var_dump($options);
-	
 	// --help command.
 	if (array_key_exists("help",$options)) {				
 		show_help();
@@ -20,38 +21,46 @@
 	// --create_table command.
 	elseif (array_key_exists("create_table",$options)) {
 		if ( !array_key_exists("u",$options) || !array_key_exists("p",$options) || !array_key_exists("h",$options) ) {
-			echo "Database information not provided. Please, use -u -p -h to specify parameters.\nType: --help for full command line options.\n\n";
+			echo "\n\t>> Database information not provided. Please, use -u -p -h to specify parameters.\n\t>> Type: --help for full command line options.\n\n";
 			$suspend = true;
 		}
 		elseif (array_key_exists("dry_run",$options)) {		// Can't conflict with dry_run
-			echo "dry_run and create_table commands can't be used at the same time. Please, verify and try again.\nType: --help for full command line options.\n\n";
+			echo "\n\t>> dry_run and create_table commands can't be used at the same time. Please, verify and try again.\n\t>> Type: --help for full command line options.\n\n";
 			$suspend = true;
 		}
 		$preparedb = true;
 	}
 	// --file command.
 	elseif (array_key_exists("file",$options)) {
+		$extension = substr($options["file"],strlen($options["file"])-4);
 		
-		if ( strtolower(substr($options["file"],strlen($options["file"])-3)) != ".csv" ) {
-			echo "Invalid file. Only CSV files are accepted.\nType: --help for more details.\n\n";
-			exit;
+		if ( strtolower($extension) != ".csv" ) {
+			echo "\n\t>> Invalid file. Only CSV files are accepted.\n\t>> Type: --help for more details.\n\n";
+			$suspend = true;
 		}
 		else {
 			$parse = true;
+			$filename = strtolower($options["file"]);
 			
-			if (!array_key_exists("dry_run",$options)) {	
-				if ( !array_key_exists("u",$options) || !array_key_exists("p",$options) || !array_key_exists("h",$options) ) {
-					echo "Database information not provided. Please, use -u -p -h to specify parameters.\nType: --help for full command line options.\n\n";
-					exit;
+			if ( file_exists($filename) && ($file = fopen($filename, 'r')) !== false ) {						   
+				if ( !array_key_exists("dry_run",$options) && !$suspend ) {	
+					if ( !array_key_exists("u",$options) || !array_key_exists("p",$options) || !array_key_exists("h",$options) ) {
+						echo "\n\t>> Database information not provided. Please, use -u -p -h to specify parameters.\n\t>> Type: --help for full command line options.\n\n";
+						$suspend = true;
+					}
+					else {
+						$import = true;
+					}
 				}
-				else {
-					$import = true;
-				}
-			}
+			}				
+			else {
+				echo "\n\t>> File doesn't exist or could not be opened. Please, verify file path and name.\n\t>> Type: --help for full command line options.\n\n";
+				$suspend = true;		
+			}			
 		}	
 	}
 	else {
-		echo "Filename not provided. Please, use --file [filename] to specify the file to be imported.\nType: --help for full command line options.\n\n";
+		echo "\n\t>> Filename not provided. Please, use --file [filename] to specify the file to be imported.\n\t>> Type: --help for full command line options.\n\n";
 	}
 	
 	// import --dry_run --create_table
@@ -61,23 +70,23 @@
 		if ($dbconn != NULL) {			
 			if ( chkTableExist($dbconn,"users") ) {
 				if ($preparedb) {	// --create_table
-					echo "Users table already exists in database!\nProcess terminated.\n\n";
+					echo "\t>> Users table already exists in database!\n\t>> Process terminated\n\n";
 					$suspend = true;
 				}
 				else {				// import
-					echo "All data in the 'users' table will be replaced. Do you wish to continue? (type 'yes' or 'no'): ";
+					echo "\n\t>> All data in the 'users' table will be replaced. Do you wish to continue? (type 'yes' or 'no'): ";
 					$handle = fopen ("php://stdin","r");
 					$answer = fgets($handle);
 					fclose($handle);
 									
 					if(strtolower(trim($answer)) != 'yes'){	
-						echo "Process ended by user.\n\n";
-						$import = false;
+						echo "\t>> Process ended by user.\n\n";
+						$suspend = true;
 					} 
 				}
 			}
 			elseif ($preparedb) {	// --create_table
-				echo "User table will be created. Do you wish to continue? (type 'yes' or 'no'): ";
+				echo "\n\t>> User table will be created. Do you wish to continue? (type 'yes' or 'no'): ";
 				$handle = fopen ("php://stdin","r");
 				$answer = fgets($handle);
 				fclose($handle);
@@ -90,7 +99,7 @@
 					$usrexist = false;
 					
 					if ( CreateTable($dbconn) ) {
-						echo "Users table was created successfully!\n\n";
+						echo "\n\t>> Users table was created successfully!\n\n";
 						$suspend;
 					}
 				}
@@ -102,11 +111,11 @@
 
 				if ($dbconn->query($sql) !== TRUE) {
 					$suspend = true;
-					echo "\n\nError dropping users table: " . $dbconn->error;
+					echo "\n\t>> Error dropping users table: " . $dbconn->error . "\n";
 				} 	
 				else {
 					if ( CreateTable($dbconn) ) {
-						echo "Users table was created successfully!\n\n";	
+						echo "\n\t>> Users table was rebuilt successfully!\n\n";	
 					}		
 					else {
 						$suspend = true;
@@ -118,15 +127,15 @@
 			$suspend = true;
 		}
 	}
-	
 	//---------- Parse CSV file -----------
 	if ( $parse && !$suspend ) {				// import --dry_run
-		$file = fopen($options["file"], 'r');
+		//$file = fopen($options["file"], 'r');
 		$hdr = false;
 		$headers = array();
 		$usr_count = 0;
 		$usr_valid = 0;
 		$allEmails = array();
+		$pattern = array('!','*','?',']'.'[');
 		
 		while ($file != NULL && ($line = fgetcsv($file)) !== FALSE) {
 			if ($hdr == false) {
@@ -135,56 +144,63 @@
 			}
 			else {	// Insert row into table
 				$email = trim(strtolower($line[array_search('email', $headers)]));
+				$usr_count++;
 				
 				if ( filter_var($email, FILTER_VALIDATE_EMAIL) !== false ) {										// Valid email
-					$name = trim(ucfirst(strtolower(addslashes($line[array_search('name', $headers)]))));
-					$surname = trim(ucfirst(strtolower(addslashes($line[array_search('surname', $headers)]))));
-					$usr_count++;
-					
-					if ( $import ) { // import
-						$sql = "INSERT INTO users (email, name, surname) VALUES ('".$email."','".$name."','".$surname."')";
-					
-						if ($dbconn->query($sql) === TRUE) {
-							$usr_valid++;
-						} 
-						else {
-							echo "\n\nError adding user: " . $dbconn->error;
-						}	
-					}
-					else {			// --dry_run
-						$found = array_search($email, $allEmails);
+					$name = trim(ucfirst(strtolower($line[array_search('name', $headers)])));
+					$surname = trim(ucfirst(strtolower($line[array_search('surname', $headers)])));
+					$found = array_search($email, $allEmails);
 						
-						if ( $found == false && $found != NULL ) {
-							array_push($allEmails, $email);
-							$usr_valid++;
+					if ( isset($found) && $found == false ) {
+						array_push($allEmails, $email);
+												
+						if ( $import ) { // import
+							$name = str_replace($pattern,'',$dbconn->real_escape_string($name));
+							$surname = str_replace($pattern,'',$dbconn->real_escape_string($surname));
+							$sql = "INSERT INTO users (email, name, surname) VALUES ('".$dbconn->real_escape_string($email)."','".$name."','".$surname."')";
+					
+							if ($dbconn->query($sql) === TRUE) {
+								$usr_valid++;
+							} 
+							else {
+								echo "\n\t>> Error adding user: " . $dbconn->error;
+							}	
 						}
 						else {
-							echo "\n\nError validating user: Email is duplicated. Name: " . $name . " " . $surname;
-						}					
+							$usr_valid++;
+						}
 					}
+					else {
+						echo "\n\t>> Error validating user: Email is duplicated. Name: " . $name . " " . $surname . " - Email: ".$email."\n";
+					}					
 				}	
 				else {
 					if ( $import ) {	// import
-						echo "\nError adding user: ".$name." ".$surname." has an invalid email: ".$email;	
+						echo "\n\t>> Error adding user: ".$name." ".$surname." has an invalid email: ".$email."\n";	
 					}
 					else {				// --dry_run
-						echo "\nError validating user: ".$name." ".$surname." has an invalid email: ".$email;
+						echo "\n\t>> Error validating user: ".$name." ".$surname." has an invalid email: ".$email."\n";
 					}
-					
 				}			
 			}
 		}
-		fclose($file);
-		
 		if ( $import ) {
-			echo "\n\nProcess completed successfully! ".$usr_valid."/".$usr_count." imported to database.\n\n";	
-		}			
+			echo "\n\n\t>> Process completed successfully! ".$usr_valid."/".$usr_count." users imported to database.\n\n";	
+		}
+		elseif ( $parse ) {
+			echo "\n\n\t>> Validation completed successfully! ".$usr_valid."/".$usr_count." users can be imported into database.\n\n";	
+		}
 	}
-	if ($dbconn != NULL) {
+	if (isset($dbconn) && $dbconn != NULL) {
 		$dbconn->close();	
 	}
+	if (isset($file) && $file != NULL) {
+		fclose($file);	
+	}
 
-	
+/* -------------------------------------------------------------------------------------------------------------------
+	Show_Help
+   -------------------------------------------------------------------------------------------------------------------*/
 	function show_help() {
 		echo "\nUSER UPLOAD SCRIPT HELP\n
 		==============================================================================================================\n
@@ -215,6 +231,12 @@
 		==============================================================================================================\n\n";
 	}
 	
+/* -------------------------------------------------------------------------------------------------------------------
+	chkTableExist: Check if a table exist in selected database.
+	Return:
+		true: Table found.
+		false: Not found.
+   -------------------------------------------------------------------------------------------------------------------*/	
 	function chkTableExist($handle, $table) {
 		$res = $handle->query("SHOW TABLES LIKE '".$table."'");
 
@@ -224,7 +246,13 @@
 		}
 		return false;
 	}
-	
+
+/* -------------------------------------------------------------------------------------------------------------------
+	dbConnect: Open connection with database.
+	Return: 
+		NULL: Connection failed.
+		Connection Object: When db connection was successful.
+   -------------------------------------------------------------------------------------------------------------------*/
 	function dbConnect($db,$host,$user,$pass){
 		// Establishing DB Connection
 		$dbconn = new mysqli($host, $user, $pass, $db);
@@ -235,11 +263,17 @@
 			return NULL;
 		} 
 		else {
-			echo "\nConnected successfully\n";
+			echo "\n\t>> Connected successfully to ".$db."\n";
 		}
 		return $dbconn;
 	}
-	
+
+/* -------------------------------------------------------------------------------------------------------------------
+	CreateTable: Insert users table into database.
+	Return:
+		true: Table inserte successfully
+		false: Error creating table.
+   -------------------------------------------------------------------------------------------------------------------*/
 	function CreateTable($dbconn) {
 		$sql = "CREATE TABLE users (
 					email VARCHAR(50) PRIMARY KEY,
@@ -252,7 +286,7 @@
 			return true;
 		} 
 		else {
-			echo "\n\nError creating users table: " . $dbconn->error."/n/n";
+			echo "\n\t>> Error creating users table: " . $dbconn->error."/n/n";
 			return false;
 		}
 	}
