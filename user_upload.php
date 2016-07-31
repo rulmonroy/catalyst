@@ -14,6 +14,8 @@
 	$preparedb 	= false;		// Flag to trigger database table creation.
 	$suspend	= false;		// Flag to suspend script.
 	
+	echo "\n\t-------------------- Initiating Script: user_upload --------------------\n";
+	
 	// --help command.
 	if (array_key_exists("help",$options)) {				
 		show_help();
@@ -100,8 +102,8 @@
 					
 					if ( CreateTable($dbconn) ) {
 						echo "\n\t>> Users table was created successfully!\n\n";
-						$suspend;
 					}
+					$suspend;
 				}
 			}
 			
@@ -111,7 +113,7 @@
 
 				if ($dbconn->query($sql) !== TRUE) {
 					$suspend = true;
-					echo "\n\t>> Error dropping users table: " . $dbconn->error . "\n";
+					echo "\n\t>> Error dropping users table: " . $dbconn->error . "\n\n";
 				} 	
 				else {
 					if ( CreateTable($dbconn) ) {
@@ -163,7 +165,7 @@
 								$usr_valid++;
 							} 
 							else {
-								echo "\n\t>> Error adding user: " . $dbconn->error;
+								echo "\n\t\t- Error adding user: " . $dbconn->error;
 							}	
 						}
 						else {
@@ -171,15 +173,15 @@
 						}
 					}
 					else {
-						echo "\n\t>> Error validating user: Email is duplicated. Name: " . $name . " " . $surname . " - Email: ".$email."\n";
+						echo "\n\t\t- Error validating user: Email is duplicated. Name: " . $name . " " . $surname . " - Email: ".$email."\n";
 					}					
 				}	
 				else {
 					if ( $import ) {	// import
-						echo "\n\t>> Error adding user: ".$name." ".$surname." has an invalid email: ".$email."\n";	
+						echo "\n\t\t- Error adding user: ".$name." ".$surname." has an invalid email: ".$email."\n";	
 					}
 					else {				// --dry_run
-						echo "\n\t>> Error validating user: ".$name." ".$surname." has an invalid email: ".$email."\n";
+						echo "\n\t\t- Error validating user: ".$name." ".$surname." has an invalid email: ".$email."\n";
 					}
 				}			
 			}
@@ -197,7 +199,8 @@
 	if (isset($file) && $file != NULL) {
 		fclose($file);	
 	}
-
+	echo "\n\t-------------------- script finished --------------------\n\n";
+	
 /* -------------------------------------------------------------------------------------------------------------------
 	Show_Help
    -------------------------------------------------------------------------------------------------------------------*/
@@ -255,12 +258,12 @@
    -------------------------------------------------------------------------------------------------------------------*/
 	function dbConnect($db,$host,$user,$pass){
 		// Establishing DB Connection
-		$dbconn = new mysqli($host, $user, $pass, $db);
+		@$dbconn = new mysqli($host, $user, $pass, $db);
 		
 		// Check connection
 		if ($dbconn->connect_error) {
-			die("Connection failed: " . $dbconn->connect_error);
-			return NULL;
+			echo "\n\t>> Connection failed: " . $dbconn->connect_error ."\n\n";
+			return null;
 		} 
 		else {
 			echo "\n\t>> Connected successfully to ".$db."\n";
@@ -282,11 +285,12 @@
 				)";
 				
 		// Attempt to create table
-		if ($dbconn->query($sql) === TRUE) {
+		if (@$dbconn->query($sql) === TRUE) {
 			return true;
 		} 
 		else {
-			echo "\n\t>> Error creating users table: " . $dbconn->error."/n/n";
+			echo "\n\t>> Error creating users table: " .$dbconn->error;
+			echo "\n\n";
 			return false;
 		}
 	}
