@@ -44,7 +44,9 @@
 			$parse = true;
 			$filename = strtolower($options["file"]);
 			
-			if ( file_exists($filename) && ($file = fopen($filename, 'r')) !== false ) {						   
+			if ( file_exists($filename) && ($file = fopen($filename, 'r')) !== false ) {
+				echo "\n\t>> CSV file successfully opened.\n";	
+				
 				if ( !array_key_exists("dry_run",$options) && !$suspend ) {	
 					if ( !array_key_exists("u",$options) || !array_key_exists("p",$options) || !array_key_exists("h",$options) ) {
 						echo "\n\t>> Database information not provided. Please, use -u -p -h to specify parameters.\n\t>> Type: --help for full command line options.\n\n";
@@ -139,10 +141,16 @@
 		$allEmails = array();
 		$pattern = array('!','*','?',']'.'[');
 		
-		while ($file != NULL && ($line = fgetcsv($file)) !== FALSE) {
+		while ($file != NULL && ($line = fgetcsv($file)) !== FALSE && !$suspend) {
 			if ($hdr == false) {
 				$hdr = true;
 				$headers = array_map('trim',$line);
+				$headers = array_map('strtolower',$headers);
+				
+				if ( array_search("name", $headers) === false || array_search("surname", $headers) === false || array_search("email", $headers) === false ) {
+					echo "\n\t\t- File error: The provided CSV file doesn't contain all required columns (name, surname, email)\n\n";
+					$suspend = true;
+				}
 			}
 			else {	// Insert row into table
 				$email = trim(strtolower($line[array_search('email', $headers)]));
@@ -173,24 +181,27 @@
 						}
 					}
 					else {
-						echo "\n\t\t- Error validating user: Email is duplicated. Name: " . $name . " " . $surname . " - Email: ".$email."\n";
+						echo "\n\t\t- Error parsing user: Email is duplicated. Name: " . $name . " " . $surname . " - Email: ".$email."\n";
 					}					
 				}	
 				else {
-					if ( $import ) {	// import
-						echo "\n\t\t- Error adding user: ".$name." ".$surname." has an invalid email: ".$email."\n";	
+					if ( empty($email) ) {	
+						echo "\n\t\t- Error parsing user: ".$name." ".$surname." has an empty email.\n";	
 					}
-					else {				// --dry_run
-						echo "\n\t\t- Error validating user: ".$name." ".$surname." has an invalid email: ".$email."\n";
+					else {				
+						echo "\n\t\t- Error parsing user: ".$name." ".$surname." has an invalid email: ".$email."\n";
 					}
 				}			
 			}
 		}
-		if ( $import ) {
-			echo "\n\n\t>> Process completed successfully! ".$usr_valid."/".$usr_count." users imported to database.\n\n";	
+		if ( $import && !$suspend ) {
+			echo "\n\n\t>> Process complete! ".$usr_valid."/".$usr_count." users imported to database.\n\n";	
 		}
-		elseif ( $parse ) {
-			echo "\n\n\t>> Validation completed successfully! ".$usr_valid."/".$usr_count." users can be imported into database.\n\n";	
+		elseif ( $parse && !$suspend ) {
+			echo "\n\n\t>> Validation complete! ".$usr_valid."/".$usr_count." users can be imported into database.\n\n";	
+		}
+		else {
+			echo "\n\n\t>> Errors found. Process interrupted. \n\n";
 		}
 	}
 	if (isset($dbconn) && $dbconn != NULL) {
@@ -205,7 +216,7 @@
 	Show_Help
    -------------------------------------------------------------------------------------------------------------------*/
 	function show_help() {
-		echo "\nUSER UPLOAD SCRIPT HELP\n
+		echo "\n\tUSER UPLOAD SCRIPT HELP\n
 		==============================================================================================================\n
 		This script parses the contents of a CSV file containing a list of users and imports the contents to\n
 		the 'users' table into the selected database. Please note that every preexistent information will be\n
